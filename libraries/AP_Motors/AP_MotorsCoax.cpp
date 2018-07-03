@@ -71,7 +71,7 @@ void AP_MotorsCoax::output_to_motors()
     switch (_spool_mode) {
         case SHUT_DOWN:
             // sends minimum values out to the motors
-            rc_write_angle(AP_MOTORS_MOT_1, _roll_radio_passthrough * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
+            rc_write_angle(AP_MOTORS_MOT_1, (_roll_radio_passthrough-(_pitch_radio_passthrough/2)) * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
             rc_write_angle(AP_MOTORS_MOT_2, _pitch_radio_passthrough * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
             rc_write_angle(AP_MOTORS_MOT_3, -_roll_radio_passthrough * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
             rc_write_angle(AP_MOTORS_MOT_4, -_pitch_radio_passthrough * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
@@ -80,9 +80,11 @@ void AP_MotorsCoax::output_to_motors()
             break;
         case SPIN_WHEN_ARMED:
             // sends output to motors when armed but not flying
-            for (uint8_t i=0; i<NUM_ACTUATORS; i++) {
-                rc_write_angle(AP_MOTORS_MOT_1+i, _spin_up_ratio * _actuator_out[i] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
-            }
+            //for (uint8_t i=0; i<NUM_ACTUATORS; i++) {
+            //    rc_write_angle(AP_MOTORS_MOT_1+i, _spin_up_ratio * _actuator_out[i] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
+            //}
+           // rc_write_angle(AP_MOTORS_MOT_1, _spin_up_ratio * _actuator_out[0] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
+            rc_write_angle(AP_MOTORS_MOT_2, _spin_up_ratio * _actuator_out[1] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
             rc_write(AP_MOTORS_MOT_5, calc_spin_up_to_pwm());
             rc_write(AP_MOTORS_MOT_6, calc_spin_up_to_pwm());
             break;
@@ -90,9 +92,11 @@ void AP_MotorsCoax::output_to_motors()
         case THROTTLE_UNLIMITED:
         case SPOOL_DOWN:
             // set motor output based on thrust requests
-            for (uint8_t i=0; i<NUM_ACTUATORS; i++) {
-                rc_write_angle(AP_MOTORS_MOT_1+i, _actuator_out[i] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
-            }
+           // for (uint8_t i=0; i<NUM_ACTUATORS; i++) {
+            //    rc_write_angle(AP_MOTORS_MOT_1+i, _actuator_out[i] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
+          //  }
+           // rc_write_angle(AP_MOTORS_MOT_1,  _actuator_out[0] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
+            rc_write_angle(AP_MOTORS_MOT_2,_actuator_out[1] * AP_MOTORS_COAX_SERVO_INPUT_RANGE);
             rc_write(AP_MOTORS_MOT_5, calc_thrust_to_pwm(_thrust_yt_ccw));
             rc_write(AP_MOTORS_MOT_6, calc_thrust_to_pwm(_thrust_yt_cw));
             break;
@@ -129,7 +133,8 @@ void AP_MotorsCoax::output_armed_stabilizing()
 
     // apply voltage and air pressure compensation
     const float compensation_gain = get_compensation_gain();
-    roll_thrust = _roll_in * compensation_gain;
+    //roll_thrust = ( _roll_in - _pitch_in) * compensation_gain;
+    roll_thrust =  _roll_in * compensation_gain;
     pitch_thrust = _pitch_in * compensation_gain;
     yaw_thrust = _yaw_in * compensation_gain;
     throttle_thrust = get_throttle() * compensation_gain;
