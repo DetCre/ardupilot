@@ -70,6 +70,20 @@ const AP_Param::GroupInfo AP_OSD::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("_SW_METHOD", 7, AP_OSD, sw_method, AP_OSD::TOGGLE),
 
+    // @Param: _OPTIONS
+    // @DisplayName: OSD Options
+    // @Description: This sets options that change the display
+    // @Bitmask: 0:UseDecimalPack
+    // @User: Standard
+    AP_GROUPINFO("_OPTIONS", 8, AP_OSD, options, OPTION_DECIMAL_PACK),
+
+    // @Param: _FONT
+    // @DisplayName: OSD Font
+    // @Description: This sets which OSD font to use. It is an integer from 0 to the number of fonts available
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO("_FONT", 9, AP_OSD, font_num, 0),
+    
     AP_GROUPEND
 };
 
@@ -80,6 +94,9 @@ AP_OSD::AP_OSD()
     AP_Param::setup_object_defaults(this, var_info);
     // default first screen enabled
     screen[0].enabled = 1;
+#ifdef WITH_SITL_OSD
+    osd_type.set_default(2);
+#endif
 }
 
 void AP_OSD::init()
@@ -99,7 +116,6 @@ void AP_OSD::init()
             break;
         }
         hal.console->printf("Started MAX7456 OSD\n");
-        hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_OSD::timer, void));
         break;
     }
 
@@ -110,19 +126,20 @@ void AP_OSD::init()
             break;
         }
         hal.console->printf("Started SITL OSD\n");
-        hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_OSD::timer, void));
         break;
     }
 #endif
     }
+    if (backend != nullptr) {
+        // create thread as higher priority than IO
+        hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_OSD::osd_thread, void), "OSD", 512, AP_HAL::Scheduler::PRIORITY_IO, 1);
+    }
 }
 
-void AP_OSD::timer()
+void AP_OSD::osd_thread()
 {
-    uint32_t now = AP_HAL::millis();
-
-    if (now - last_update_ms >= 100) {
-        last_update_ms = now;
+    while (true) {
+        hal.scheduler->delay(100);
         update_osd();
     }
 }

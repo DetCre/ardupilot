@@ -49,20 +49,29 @@ private:
     sf::RenderWindow *w;
 
     sf::Texture font[256];
+    uint8_t last_font;
 
     // setup to match MAX7456 layout
     static const uint8_t char_width = 12;
     static const uint8_t char_height = 18;
     static const uint8_t video_lines = 16; // PAL
     static const uint8_t video_cols = 30;
-    static const uint8_t char_spacing = 1;
+    static const uint8_t char_spacing = 0;
 
     // scaling factor to make it easier to read
     static const uint8_t char_scale = 2;
     
     uint8_t buffer[video_lines][video_cols];
+    uint8_t attr[video_lines][video_cols];
 
+    void update_thread();
+    static void *update_thread_start(void *obj);
     void load_font();
+
+    pthread_t thread;
+    AP_HAL::Semaphore *mutex;
+    uint32_t counter;
+    uint32_t last_counter;
 };
 
 #endif // WITH_SITL_OSD

@@ -28,6 +28,7 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_RSSI/AP_RSSI.h>
 #include <AP_Notify/AP_Notify.h>
+
 #include <ctype.h>
 #include <GCS_MAVLink/GCS.h>
 
@@ -89,7 +90,7 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
     // @Group: GSPEED
     // @Path: AP_OSD_Setting.cpp
     AP_SUBGROUPINFO(gspeed, "GSPEED", 12, AP_OSD_Screen, AP_OSD_Setting),
-    
+
     // @Group: HORIZON
     // @Path: AP_OSD_Setting.cpp
     AP_SUBGROUPINFO(horizon, "HORIZON", 13, AP_OSD_Screen, AP_OSD_Setting),
@@ -101,10 +102,48 @@ const AP_Param::GroupInfo AP_OSD_Screen::var_info[] = {
     //@Group: HEADING
     //@Path: AP_OSD_Setting.cpp
     AP_SUBGROUPINFO(heading, "HEADING", 15, AP_OSD_Screen, AP_OSD_Setting),
-    
+
     //@Group: THROTTLE
     //@Path: AP_OSD_Setting.cpp
     AP_SUBGROUPINFO(throttle, "THROTTLE", 16, AP_OSD_Screen, AP_OSD_Setting),
+
+    //@Group: COMPASS
+    //@Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(compass, "COMPASS", 17, AP_OSD_Screen, AP_OSD_Setting),
+
+    //@Group: WIND
+    //@Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(wind, "WIND", 18, AP_OSD_Screen, AP_OSD_Setting),
+
+    //@Group: ASPEED
+    //@Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(aspeed, "ASPEED", 19, AP_OSD_Screen, AP_OSD_Setting),
+
+    //@Group: VSPEED
+    //@Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(vspeed, "VSPEED", 20, AP_OSD_Screen, AP_OSD_Setting),
+
+#ifdef HAVE_AP_BLHELI_SUPPORT
+    // @Group: BLHTEMP
+    // @Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(blh_temp, "BLHTEMP", 21, AP_OSD_Screen, AP_OSD_Setting),
+
+    // @Group: BLHRPM 
+    // @Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(blh_rpm, "BLHRPM", 22, AP_OSD_Screen, AP_OSD_Setting),
+
+    // @Group: BLHAMPS
+    // @Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(blh_amps, "BLHAMPS", 23, AP_OSD_Screen, AP_OSD_Setting),
+#endif
+    
+    // @Group: GPSLAT
+    // @Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(gps_latitude, "GPSLAT", 24, AP_OSD_Screen, AP_OSD_Setting),
+
+    // @Group: GPSLONG
+    // @Path: AP_OSD_Setting.cpp
+    AP_SUBGROUPINFO(gps_longitude, "GPSLONG", 25, AP_OSD_Screen, AP_OSD_Setting),
 
     AP_GROUPEND
 };
@@ -115,10 +154,6 @@ AP_OSD_Screen::AP_OSD_Screen()
 }
 
 //Symbols
-#define SYM_BLANK 0x20
-#define SYM_COLON 0x2D
-#define SYM_ZERO_HALF_TRAILING_DOT 192
-#define SYM_ZERO_HALF_LEADING_DOT 208
 
 #define SYM_M           0xB9
 #define SYM_KM          0xBA
@@ -129,14 +164,28 @@ AP_OSD_Screen::AP_OSD_Screen()
 #define SYM_VOLT  0x06
 #define SYM_AMP   0x9A
 #define SYM_MAH   0x07
+#define SYM_MS    0x9F
 #define SYM_KMH   0xA1
 #define SYM_DEGR  0xA8
 #define SYM_PCNT  0x25
+#define SYM_RPM   0xE0
+#define SYM_ASPD  0xE1
+#define SYM_GSPD  0xE2
+#define SYM_WSPD  0xE3
+#define SYM_VSPD  0xE4
+#define SYM_WPNO  0xE5
+#define SYM_WPDIR  0xE6
+#define SYM_WPDST  0xE7
+#define SYM_FTMIN  0xE8
+#define SYM_FTSEC  0x99
+
+
 
 #define SYM_SAT_L 0x1E
 #define SYM_SAT_R 0x1F
 
 #define SYM_HOME 0xBF
+#define SYM_WIND 0x16
 
 #define SYM_ARROW_START 0x60
 #define SYM_ARROW_COUNT 16
@@ -155,11 +204,21 @@ AP_OSD_Screen::AP_OSD_Screen()
 #define SYM_HEADING_DIVIDED_LINE  0x1C
 #define SYM_HEADING_LINE          0x1D
 
+#define SYM_UP_UP        0xA2
+#define SYM_UP           0xA3
+#define SYM_DOWN         0xA4
+#define SYM_DOWN_DOWN    0xA5
+
+#define SYM_DEGREES_C 0x0E
+#define SYM_DEGREES_F 0x0D
+#define SYM_GPS_LAT   0xA6
+#define SYM_GPS_LONG  0xA7
+
 void AP_OSD_Screen::draw_altitude(uint8_t x, uint8_t y)
 {
     float alt;
     AP::ahrs().get_relative_position_D_home(alt);
-    backend->write(x, y, false, "%4.0f%c", alt, SYM_ALT_M);
+    backend->write(x, y, false, "%4.0f%c", -alt, SYM_ALT_M);
 }
 
 void AP_OSD_Screen::draw_bat_volt(uint8_t x, uint8_t y)
@@ -167,7 +226,7 @@ void AP_OSD_Screen::draw_bat_volt(uint8_t x, uint8_t y)
     AP_BattMonitor &battery = AP_BattMonitor::battery();
     uint8_t p = battery.capacity_remaining_pct();
     p = (100 - p) / 16.6;
-    backend->write(x,y, battery.has_failsafed(), "%c%2.1fV", SYM_BATT_FULL + p, battery.voltage());
+    backend->write(x,y, battery.has_failsafed(), "%c%2.1f%c", SYM_BATT_FULL + p, battery.voltage(), SYM_VOLT);
 }
 
 void AP_OSD_Screen::draw_rssi(uint8_t x, uint8_t y)
@@ -184,7 +243,7 @@ void AP_OSD_Screen::draw_current(uint8_t x, uint8_t y)
 {
     AP_BattMonitor &battery = AP_BattMonitor::battery();
     float amps = battery.current_amps();
-    backend->write(x, y, false, "%c%2.1f", SYM_AMP, amps);
+    backend->write(x, y, false, "%2.1f%c", amps, SYM_AMP);
 }
 
 void AP_OSD_Screen::draw_fltmode(uint8_t x, uint8_t y)
@@ -204,7 +263,7 @@ void AP_OSD_Screen::draw_sats(uint8_t x, uint8_t y)
 void AP_OSD_Screen::draw_batused(uint8_t x, uint8_t y)
 {
     AP_BattMonitor &battery = AP_BattMonitor::battery();
-    backend->write(x,y, battery.has_failsafed(), "%c%4.0f", SYM_MAH, battery.consumed_mah());
+    backend->write(x,y, battery.has_failsafed(), "%4.0f%c", battery.consumed_mah(), SYM_MAH);
 }
 
 //Autoscroll message is the same as in minimosd-extra.
@@ -257,10 +316,24 @@ void AP_OSD_Screen::draw_message(uint8_t x, uint8_t y)
     }
 }
 
+void AP_OSD_Screen::draw_speed_vector(uint8_t x, uint8_t y,Vector2f v, int32_t yaw)
+{
+    float v_length = v.length();
+    char arrow = SYM_ARROW_START;
+    if (v_length > 1.0f) {
+        int32_t angle = wrap_360_cd(DEGX100 * atan2f(v.y, v.x) - yaw);
+        int32_t interval = 36000 / SYM_ARROW_COUNT;
+        arrow = SYM_ARROW_START + ((angle + interval / 2) / interval) % SYM_ARROW_COUNT;
+    }
+    backend->write(x, y, false, "%c%3.0f%c", arrow,  v_length * 3.6, SYM_KMH);
+}
+
 void AP_OSD_Screen::draw_gspeed(uint8_t x, uint8_t y)
 {
-    float v = AP::ahrs().groundspeed() * 3.6;
-    backend->write(x, y, false, "%3.0f%c", v, SYM_KMH);
+    AP_AHRS &ahrs = AP::ahrs();
+    Vector2f v = ahrs.groundspeed_vector();
+    backend->write(x, y, false, "%c", SYM_GSPD);
+    draw_speed_vector(x + 1, y, v, ahrs.yaw_sensor);
 }
 
 //Thanks to betaflight/inav for simple and clean artificial horizon visual design
@@ -324,6 +397,151 @@ void AP_OSD_Screen::draw_throttle(uint8_t x, uint8_t y)
     backend->write(x, y, false, "%3d%c", gcs().get_hud_throttle(), SYM_PCNT);
 }
 
+//Thanks to betaflight/inav for simple and clean compass visual design
+void AP_OSD_Screen::draw_compass(uint8_t x, uint8_t y)
+{
+    const int8_t total_sectors = 16;
+    static const char compass_circle[total_sectors] = {
+        SYM_HEADING_N,
+        SYM_HEADING_LINE,
+        SYM_HEADING_DIVIDED_LINE,
+        SYM_HEADING_LINE,
+        SYM_HEADING_E,
+        SYM_HEADING_LINE,
+        SYM_HEADING_DIVIDED_LINE,
+        SYM_HEADING_LINE,
+        SYM_HEADING_S,
+        SYM_HEADING_LINE,
+        SYM_HEADING_DIVIDED_LINE,
+        SYM_HEADING_LINE,
+        SYM_HEADING_W,
+        SYM_HEADING_LINE,
+        SYM_HEADING_DIVIDED_LINE,
+        SYM_HEADING_LINE,
+    };
+    AP_AHRS &ahrs = AP::ahrs();
+    int32_t yaw = ahrs.yaw_sensor;
+    int32_t interval = 36000 / total_sectors;
+    int8_t center_sector = ((yaw + interval / 2) / interval) % total_sectors;
+    for (int8_t i = -4; i <= 4; i++) {
+        int8_t sector = center_sector + i;
+        sector = (sector + total_sectors) % total_sectors;
+        backend->write(x + i, y, false,  "%c", compass_circle[sector]);
+    }
+}
+
+void AP_OSD_Screen::draw_wind(uint8_t x, uint8_t y)
+{
+    AP_AHRS &ahrs = AP::ahrs();
+    Vector3f v = ahrs.wind_estimate();
+    backend->write(x, y, false, "%c", SYM_WSPD);
+    draw_speed_vector(x + 1, y, Vector2f(v.x, v.y), ahrs.yaw_sensor);
+}
+
+void AP_OSD_Screen::draw_aspeed(uint8_t x, uint8_t y)
+{
+    float aspd = 0.0f;
+    if (AP::ahrs().airspeed_estimate(&aspd)) {
+        backend->write(x, y, false, "%c%4.0f%c", SYM_ASPD, aspd * 3.6, SYM_KMH);
+    } else {
+        backend->write(x, y, false, "%c ---%c", SYM_ASPD, SYM_KMH);
+    }
+}
+
+void AP_OSD_Screen::draw_vspeed(uint8_t x, uint8_t y)
+{
+    Vector3f v;
+    AP::ahrs().get_velocity_NED(v);
+    float vspd = -v.z;
+    char sym;
+    if (vspd > 3.0f) {
+        sym = SYM_UP_UP;
+    } else if (vspd >=0.0f) {
+        sym = SYM_UP;
+    } else if (vspd >= -3.0f) {
+        sym = SYM_DOWN;
+    } else {
+        sym = SYM_DOWN_DOWN;
+    }
+    vspd = fabsf(vspd);
+    backend->write(x, y, false, "%c%2.0f%c", sym, vspd, SYM_MS);
+}
+
+#ifdef HAVE_AP_BLHELI_SUPPORT
+
+void AP_OSD_Screen::draw_blh_temp(uint8_t x, uint8_t y)
+{
+    AP_BLHeli *blheli = AP_BLHeli::get_singleton();
+    if (blheli) {
+        AP_BLHeli::telem_data td;
+        // first parameter is index into array of ESC's.  Hardwire to zero (first) for now.
+        if (!blheli->get_telem_data(0, td)) {
+            return;
+        }
+
+        // AP_BLHeli & blh = AP_BLHeli::AP_BLHeli();
+        uint8_t esc_temp = td.temperature;
+        backend->write(x, y, false, "%3d%c", esc_temp, SYM_DEGREES_C);
+    }
+}
+
+void AP_OSD_Screen::draw_blh_rpm(uint8_t x, uint8_t y)
+{
+    AP_BLHeli *blheli = AP_BLHeli::get_singleton();
+    if (blheli) {
+        AP_BLHeli::telem_data td;
+        // first parameter is index into array of ESC's.  Hardwire to zero (first) for now.
+        if (!blheli->get_telem_data(0, td)) {
+            return;
+        }
+
+        int esc_rpm = td.rpm * 14;   // hard-wired assumption for now that motor has 14 poles, so multiply eRPM * 14 to get motor RPM.
+        backend->write(x, y, false, "%5d%c", esc_rpm, SYM_RPM);
+    }
+}
+
+void AP_OSD_Screen::draw_blh_amps(uint8_t x, uint8_t y)
+{
+    AP_BLHeli *blheli = AP_BLHeli::get_singleton();
+    if (blheli) {
+        AP_BLHeli::telem_data td;
+        // first parameter is index into array of ESC's.  Hardwire to zero (first) for now.
+        if (!blheli->get_telem_data(0, td)) {
+            return;
+        }
+
+        float esc_amps = td.current;
+        backend->write(x, y, false, "%4.1f%c", esc_amps, SYM_AMP);
+    }
+}
+#endif  //HAVE_AP_BLHELI_SUPPORT
+
+void AP_OSD_Screen::draw_gps_latitude(uint8_t x, uint8_t y)
+{
+    AP_GPS & gps = AP::gps();
+    const Location &loc = gps.location();   // loc.lat and loc.lng
+    int32_t dec_portion, frac_portion;
+    int32_t abs_lat = labs(loc.lat);
+
+    dec_portion = loc.lat / 10000000L;
+    frac_portion = abs_lat - labs(dec_portion)*10000000UL;
+
+    backend->write(x, y, false, "%c%3ld.%07ld", SYM_GPS_LAT, (long)dec_portion,(long)frac_portion);
+}
+
+void AP_OSD_Screen::draw_gps_longitude(uint8_t x, uint8_t y)
+{
+    AP_GPS & gps = AP::gps();
+    const Location &loc = gps.location();   // loc.lat and loc.lng
+    int32_t dec_portion, frac_portion;
+    int32_t abs_lon = labs(loc.lng);
+
+    dec_portion = loc.lng / 10000000L;
+    frac_portion = abs_lon - labs(dec_portion)*10000000UL;
+
+    backend->write(x, y, false, "%c%3ld.%07ld", SYM_GPS_LONG, (long)dec_portion,(long)frac_portion);
+}
+
 #define DRAW_SETTING(n) if (n.enabled) draw_ ## n(n.xpos, n.ypos)
 
 void AP_OSD_Screen::draw(void)
@@ -337,6 +555,7 @@ void AP_OSD_Screen::draw(void)
     //so they will not overwrite more important ones.
     DRAW_SETTING(message);
     DRAW_SETTING(horizon);
+    DRAW_SETTING(compass);
     DRAW_SETTING(altitude);
     DRAW_SETTING(bat_volt);
     DRAW_SETTING(rssi);
@@ -345,7 +564,19 @@ void AP_OSD_Screen::draw(void)
     DRAW_SETTING(sats);
     DRAW_SETTING(fltmode);
     DRAW_SETTING(gspeed);
+    DRAW_SETTING(aspeed);
+    DRAW_SETTING(vspeed);
     DRAW_SETTING(throttle);
     DRAW_SETTING(heading);
+    DRAW_SETTING(wind);
     DRAW_SETTING(home);
+
+#ifdef HAVE_AP_BLHELI_SUPPORT
+    DRAW_SETTING(blh_temp);
+    DRAW_SETTING(blh_rpm);
+    DRAW_SETTING(blh_amps);
+#endif
+    
+    DRAW_SETTING(gps_latitude);
+    DRAW_SETTING(gps_longitude);
 }

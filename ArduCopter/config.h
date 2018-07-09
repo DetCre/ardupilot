@@ -732,3 +732,7 @@
 #ifndef OSD_ENABLED
  #define OSD_ENABLED DISABLED
 #endif
+
+#ifndef COAX_MIXING
+ # define COAX_MIXING    0.37     // default value for my new parameter
+#endif

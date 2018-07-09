@@ -151,7 +151,8 @@ public:
         k_param_single_servo_1 = 75,    // remove
         k_param_single_servo_2,         // remove
         k_param_single_servo_3,         // remove
-        k_param_single_servo_4,         // 78 - remove
+        k_param_single_servo_4,         // remove
+        k_param_coax_mixing,         // remove
 
         //
         // 80: Heli
@@ -445,6 +446,7 @@ public:
     AP_Int8         fs_crash_check;
     AP_Float        fs_ekf_thresh;
     AP_Int16        gcs_pid_mask;
+    AP_Float        coax_mixing;
 
 #if MODE_THROW_ENABLED == ENABLED
     AP_Int8         throw_motor_start;
