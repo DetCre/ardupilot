@@ -17,6 +17,7 @@
 #define AP_MOTORS_SINGLE_SPEED_ANALOG_SERVOS 125  // update rate for analog servos
 
 #define AP_MOTORS_COAX_SERVO_INPUT_RANGE    4500    // roll or pitch input of -4500 will cause servos to their minimum (i.e. radio_min), +4500 will move them to their maximum (i.e. radio_max)
+//#define COAX_MIXING_DEFAULT //safd
 
 /// @class      AP_MotorsSingle
 class AP_MotorsCoax : public AP_MotorsMulticopter {
